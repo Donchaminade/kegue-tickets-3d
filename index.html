@@ -1,0 +1,19 @@
+<!doctype html>
+<html lang="fr">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+    <meta name="theme-color" content="#05070d" />
+    <meta name="description" content="Billetterie 3D du Stade de Kégué (Lomé) : survolez les tribunes, entrez dans un bloc, voyez le terrain depuis votre siège et payez par T-Money ou Flooz. Concept indépendant, non officiel." />
+    <meta property="og:title" content="Kégué Billetterie 3D" />
+    <meta property="og:description" content="Choisissez votre place en 3D et voyez le terrain avant de payer. Concept indépendant, non officiel." />
+    <meta property="og:image" content="/og.png" />
+    <title>Kégué Billetterie 3D · Stade de Kégué, Lomé</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>if (/[?&]capture=1/.test(location.search)) document.write('<script src="/capture.js"><\/script>')</script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
