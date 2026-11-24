@@ -2,9 +2,9 @@ import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import QRCode from 'qrcode'
 import {
-  ArrowLeft, Armchair, Check, ChevronRight, Crown, Download, Eye, Hand, Loader2, Minus, MousePointer2, Orbit, Plus, RotateCw, ShieldCheck, Smartphone, Sparkles, Ticket, Users,
+  ArrowLeft, Armchair, MapPin, Check, ChevronRight, Crown, Download, Eye, Hand, Loader2, Minus, MousePointer2, Orbit, Plus, RotateCw, ShieldCheck, Smartphone, Sparkles, Ticket, Users,
 } from 'lucide-react'
-import { BLOCKS, BLOCK_BY_ID, CATS, MATCH, fcfa, freeCount, type Block, type Cat } from './stadium'
+import { BLOCKS, BLOCK_BY_ID, CATS, STADIUM, fcfa, freeCount, type Block, type Cat } from './stadium'
 import { getBlock, liveTick, pickSeats, priceOf, useApp, type Op } from './store'
 import { flyAerial, flyBlock, flyLoges, flySeat } from './cam'
 import { runDemo } from './demo'
@@ -22,27 +22,6 @@ const useIsDesktop = () => {
   return d
 }
 
-function Flag({ c }: { c: 'tg' | 'gh' }) {
-  if (c === 'tg')
-    return (
-      <svg viewBox="0 0 30 20" className="h-4 w-6 rounded-[3px] shadow ring-1 ring-white/20">
-        {[0, 1, 2, 3, 4].map((i) => (
-          <rect key={i} y={i * 4} width="30" height="4" fill={i % 2 ? '#ffce00' : '#006a4e'} />
-        ))}
-        <rect width="12" height="12" fill="#d21034" />
-        <polygon points="6,2.2 7.1,5.1 10.2,5.1 7.7,7 8.6,9.9 6,8.1 3.4,9.9 4.3,7 1.8,5.1 4.9,5.1" fill="#fff" />
-      </svg>
-    )
-  return (
-    <svg viewBox="0 0 30 20" className="h-4 w-6 rounded-[3px] shadow ring-1 ring-white/20">
-      <rect width="30" height="6.67" fill="#ce1126" />
-      <rect y="6.67" width="30" height="6.67" fill="#fcd116" />
-      <rect y="13.33" width="30" height="6.67" fill="#006b3f" />
-      <polygon points="15,7.2 15.9,9.4 18.2,9.4 16.3,10.8 17,13 15,11.6 13,13 13.7,10.8 11.8,9.4 14.1,9.4" fill="#000" />
-    </svg>
-  )
-}
-
 const glass = 'bg-[#0b1020]/72 backdrop-blur-xl border border-white/10 shadow-[0_10px_40px_-10px_rgba(0,0,0,0.6)]'
 
 function TopBar() {
@@ -58,29 +37,11 @@ function TopBar() {
         </div>
       </div>
       <div className={`pointer-events-auto hidden items-center gap-3 rounded-2xl px-4 py-2 sm:flex ${glass}`}>
-        <div className="flex items-center gap-2 text-[13px] font-bold text-white">
-          <Flag c="tg" /> {MATCH.home} <span className="px-1 text-white/40">vs</span> {MATCH.away} <Flag c="gh" />
-        </div>
-        <div className="h-6 w-px bg-white/10" />
+        <MapPin className="h-4 w-4 text-[#ffce1f]" />
         <div className="text-[11.5px] leading-tight text-white/65">
-          <div className="font-semibold text-white/85">{MATCH.date} · {MATCH.time}</div>
-          <div>{MATCH.comp}</div>
+          <div className="text-[13px] font-bold text-white">{STADIUM.name}</div>
+          <div>{STADIUM.city} · {STADIUM.capacity}</div>
         </div>
-      </div>
-    </div>
-  )
-}
-
-function MatchChipMobile() {
-  const phase = useApp((s) => s.phase)
-  if (phase !== 'aerial') return null
-  return (
-    <div className={`pointer-events-auto flex items-center justify-between gap-2 rounded-2xl px-3 py-2 sm:hidden ${glass}`}>
-      <div className="flex items-center gap-1.5 text-[12.5px] font-bold text-white">
-        <Flag c="tg" /> Togo <span className="text-white/40">vs</span> Ghana <Flag c="gh" />
-      </div>
-      <div className="text-right text-[11px] leading-tight text-white/70">
-        {MATCH.dateShort} · {MATCH.time}
       </div>
     </div>
   )
@@ -494,11 +455,11 @@ function Checkout({ b }: { b: Block }) {
             if (seat) flySeat(b, seat.r, seat.c)
           })}
           <div className="rounded-2xl bg-white/[0.03] px-3.5 py-2 ring-1 ring-white/[0.06]">
-            <Row k="Match" v={<span className="flex items-center gap-1.5"><Flag c="tg" /> Togo – Ghana <Flag c="gh" /></span>} />
-            <Row k="Date" v={`${MATCH.dateShort} · ${MATCH.time}`} />
+            <Row k="Stade" v={STADIUM.name} />
             <Row k="Catégorie" v={<span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: CATS[b.cat].color }} />{CATS[b.cat].label}</span>} />
             <Row k="Bloc" v={b.name} />
             <Row k={seats.length > 1 ? 'Places' : 'Place'} v={`Rang ${seats[0]?.r + 1} · Siège${seats.length > 1 ? 's' : ''} ${seats.map((s) => s.c + 1).join(', ')}`} />
+            <Row k="Accès" v={b.gate} />
           </div>
           <div className="flex items-center justify-between rounded-2xl bg-white/[0.03] px-3.5 py-2.5 ring-1 ring-white/[0.06]">
             <div>
@@ -635,11 +596,11 @@ function TicketView() {
     g.fillRect(0, 0, 900, 16)
     g.fillStyle = '#fff'
     g.font = '800 54px system-ui, sans-serif'
-    g.fillText('Togo – Ghana', 60, 120)
+    g.fillText(STADIUM.name, 60, 120)
     g.font = '500 30px system-ui, sans-serif'
     g.fillStyle = 'rgba(255,255,255,0.7)'
-    g.fillText(`${MATCH.date} · ${MATCH.time}`, 60, 175)
-    g.fillText(MATCH.venue, 60, 220)
+    g.fillText(STADIUM.city, 60, 175)
+    g.fillText('E-billet · Place réservée', 60, 220)
     const rows: [string, string][] = [
       ['Catégorie', CATS[b.cat].label],
       ['Bloc', b.name],
@@ -689,9 +650,9 @@ function TicketView() {
         <div className="h-1.5 bg-gradient-to-r from-[#006a4e] via-[#ffce00] to-[#d21034]" />
         <div className="flex items-start justify-between gap-2 px-4 pt-3">
           <div>
-            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#0b1020]/50">E-billet · {MATCH.comp}</div>
-            <div className="mt-0.5 flex items-center gap-1.5 text-[18px] font-black"><Flag c="tg" /> Togo – Ghana <Flag c="gh" /></div>
-            <div className="text-[12px] font-medium text-[#0b1020]/60">{MATCH.date} · {MATCH.time} · Stade de Kégué</div>
+            <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-[#0b1020]/50">E-billet · Place réservée</div>
+            <div className="mt-0.5 text-[18px] font-black">{STADIUM.name}</div>
+            <div className="text-[12px] font-medium text-[#0b1020]/60">{STADIUM.city} · {CATS[b.cat].label}</div>
           </div>
         </div>
         <div className="grid grid-cols-4 gap-2 px-4 py-3 text-center">
@@ -858,7 +819,6 @@ export default function App() {
       <TopBar />
       {/* floating controls */}
       <div className="pointer-events-none absolute inset-x-0 top-[calc(max(env(safe-area-inset-top),12px)+60px)] z-20 flex flex-col items-stretch gap-2 px-3 sm:top-[calc(max(env(safe-area-inset-top),12px)+64px)] sm:items-end sm:px-5">
-        <MatchChipMobile />
         <div className="flex flex-col items-start gap-2 sm:items-end">
           <Tools />
           <LiveToast />

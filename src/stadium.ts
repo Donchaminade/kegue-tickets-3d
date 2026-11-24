@@ -13,16 +13,10 @@ export const CATS: Record<Cat, { label: string; short: string; price: number; co
   virage: { label: 'Virages populaires', short: 'Virages', price: 2000, color: '#3b82f6', seat: '#3a7be8' },
 }
 
-export const MATCH = {
-  home: 'Togo',
-  homeNick: 'Les Éperviers',
-  away: 'Ghana',
-  awayNick: 'Black Stars',
-  comp: 'Match amical international',
-  date: 'Samedi 27 mars 2027',
-  dateShort: 'Sam. 27 mars',
-  time: '17h00',
-  venue: 'Stade de Kégué, Lomé',
+export const STADIUM = {
+  name: 'Stade de Kégué',
+  city: 'Lomé, Togo',
+  capacity: '≈ 25 000 places',
 }
 
 // Tier definitions (distances measured outward from the track centre line shape)

@@ -398,56 +398,6 @@ function Goal({ x }: { x: number }) {
   )
 }
 
-// ---------- players ----------
-const FORMATION: [number, number][] = [
-  [-49, 0], [-38, -20], [-40, -7], [-40, 7], [-38, 20], [-22, -24], [-24, -8], [-24, 8], [-22, 24], [-8, -6], [-6, 9],
-]
-function Players() {
-  const ref = useRef<THREE.InstancedMesh>(null)
-  const ball = useRef<THREE.Mesh>(null)
-  const geo = useMemo(() => new THREE.CapsuleGeometry(0.38, 1.05, 3, 8), [])
-  useLayoutEffect(() => {
-    const m = ref.current!
-    const c = new THREE.Color()
-    for (let i = 0; i < 22; i++) {
-      const home = i < 11
-      c.set(i === 0 ? '#16a34a' : i === 11 ? '#f97316' : home ? '#ffd21f' : '#f4f4f5')
-      m.setColorAt(i, c)
-    }
-    m.instanceColor!.needsUpdate = true
-  }, [])
-  const o = useMemo(() => new THREE.Object3D(), [])
-  useFrame(({ clock }) => {
-    const m = ref.current
-    if (!m) return
-    const t = clock.elapsedTime
-    const bx = Math.sin(t * 0.23) * 18
-    const bz = Math.sin(t * 0.31 + 1) * 14
-    for (let i = 0; i < 22; i++) {
-      const home = i < 11
-      const [fx, fz] = FORMATION[i % 11]
-      const x = (home ? fx : -fx) * 0.92 + bx * (i % 11 === 0 ? 0.08 : 0.35) + Math.sin(t * 0.7 + i) * 1.5
-      const z = (home ? fz : -fz) + bz * 0.3 + Math.cos(t * 0.6 + i * 1.7) * 1.4
-      o.position.set(x, 0.9, z)
-      o.updateMatrix()
-      m.setMatrixAt(i, o.matrix)
-    }
-    m.instanceMatrix.needsUpdate = true
-    if (ball.current) ball.current.position.set(bx * 0.9, 0.25, bz * 0.6)
-  })
-  return (
-    <group>
-      <instancedMesh ref={ref} args={[geo, undefined, 22]} raycast={() => null} frustumCulled={false}>
-        <meshStandardMaterial roughness={0.7} />
-      </instancedMesh>
-      <mesh ref={ball} raycast={() => null}>
-        <sphereGeometry args={[0.24, 12, 10]} />
-        <meshStandardMaterial color="#ffffff" emissive="#ffffff" emissiveIntensity={0.25} />
-      </mesh>
-    </group>
-  )
-}
-
 // ---------- VIP boxes ----------
 function Loges() {
   const { shell, glass, glow, parapet, walls } = useMemo(() => {
@@ -735,7 +685,6 @@ export default function Scene() {
       <Loges />
       <Roof />
       <Floodlights />
-      <Players />
       <City />
       <Zones />
       <SeatMarker />

@@ -1,15 +1,16 @@
 # Kégué Billetterie 3D
 
-Billetterie 3D pour un match au **Stade de Kégué** (Lomé, Togo). On survole le stade, on voit le prix et les places restantes de chaque tribune, la caméra plonge dans le bloc choisi, on regarde le terrain **depuis son propre siège** avant de payer, puis on règle par **T-Money ou Flooz** et on reçoit un e-billet avec QR code.
+Billetterie 3D du **Stade de Kégué** (Lomé, Togo), centrée sur le stade lui-même. On survole le stade, on voit le prix et les places restantes de chaque tribune, la caméra plonge dans le bloc choisi, on regarde le terrain **depuis son propre siège** avant de payer, puis on règle par **T-Money ou Flooz** et on reçoit un e-billet de place avec QR code.
 
 **Démo en ligne : https://kegue-tickets-3d.vercel.app**
 Mode démonstration automatique (pour les vidéos) : https://kegue-tickets-3d.vercel.app/?demo=1
 
-> Concept indépendant, non officiel. Aucun lien avec la Fédération togolaise de football ni avec la gestion du stade. Le match, les prix et les disponibilités sont fictifs, et aucun paiement réel n'est effectué.
+> Concept indépendant, non officiel. Aucun lien avec la Fédération togolaise de football ni avec la gestion du stade. Les prix et les disponibilités sont fictifs, et aucun paiement réel n'est effectué.
 
 ![Vue aérienne du stade](screenshots/desktop-1-aerial.jpg)
 
 Vidéo du parcours complet (16:9) : [video/kegue-billetterie-3d-1920x1080-web.mp4](video/kegue-billetterie-3d-1920x1080-web.mp4)
+
 Version verticale (9:16) : [video/kegue-billetterie-3d-1080x1920-web.mp4](video/kegue-billetterie-3d-1080x1920-web.mp4)
 
 ## ⭐ Star & Fork
@@ -26,7 +27,7 @@ Si le projet te plaît, laisse une **⭐ Star** et fais un **Fork** pour l'adapt
 | **Vue depuis le siège** | La caméra se place à hauteur des yeux sur le siège choisi. On peut regarder autour avant de réserver. |
 | **Loges VIP** | Huit loges vitrées sous la tribune d'honneur, accessibles en un clic. |
 | **Paiement Mobile Money** | Récapitulatif, choix du nombre de places côte à côte, T-Money ou Flooz, confirmation sur téléphone (simulée). |
-| **E-billet** | Billet avec bloc, rang, siège, porte d'accès et QR code, téléchargeable en image. |
+| **E-billet** | Billet de place avec stade, catégorie, bloc, rang, siège, porte d'accès, prix, référence et QR code, téléchargeable en image. |
 
 Catégories de la démo : Loges VIP (50 000 FCFA), Tribune d'honneur (15 000 FCFA), Tribunes latérales (5 000 FCFA), Virages populaires (2 000 FCFA).
 
