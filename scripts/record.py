@@ -15,6 +15,7 @@ async def run():
         else:
             ctx = await b.new_context(viewport={'width': W, 'height': H}, device_scale_factor=1)
         pg = await ctx.new_page()
+        pg.set_default_timeout(120000)
         pg.on('pageerror', lambda e: print('ERR', e))
         await pg.goto(U + ('&' if '?' in U else '?') + 'demo=1&capture=1')
         await pg.wait_for_function('window.__captureMode === true')
@@ -22,7 +23,11 @@ async def run():
         t0 = time.time(); n = 0; tail = None
         while n < MAXF:
             await pg.evaluate('window.__advance(1000/30)')
-            buf = await pg.screenshot(type='jpeg', quality=93)
+            for k in range(3):
+                try:
+                    buf = await pg.screenshot(type='jpeg', quality=93, timeout=90000); break
+                except Exception as e:
+                    print('retry screenshot', n, e, flush=True)
             ff.stdin.write(buf); n += 1
             if n % 60 == 0:
                 print(n, round((time.time() - t0) / n, 2), 's/frame', flush=True)
