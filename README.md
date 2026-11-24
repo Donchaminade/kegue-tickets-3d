@@ -9,6 +9,8 @@ Mode démonstration automatique (pour les vidéos) : https://kegue-tickets-3d.ve
 
 ![Vue aérienne du stade](screenshots/desktop-1-aerial.jpg)
 
+Vidéo du parcours complet (16:9) : [video/kegue-billetterie-3d-1920x1080-web.mp4](video/kegue-billetterie-3d-1920x1080-web.mp4)
+
 ## ⭐ Star & Fork
 
 Si le projet te plaît, laisse une **⭐ Star** et fais un **Fork** pour l'adapter à ton stade, ton club ou ton événement. Ça m'aide énormément à continuer à partager ce genre de projets.
