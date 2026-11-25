@@ -19,7 +19,7 @@ async def run():
         pg = await ctx.new_page()
         pg.set_default_timeout(120000)
         pg.on('pageerror', lambda e: print('ERR', e))
-        await pg.goto(U + ('&' if '?' in U else '?') + 'demo=1&capture=1')
+        await pg.goto(U + ('&' if '?' in U else '?') + 'demo=1&capture=1&bloom=1')
         await pg.wait_for_function('window.__captureMode === true')
         ff = subprocess.Popen(['ffmpeg', '-loglevel', 'error', '-y', '-f', 'image2pipe', '-framerate', str(FPS), '-c:v', 'mjpeg', '-i', '-', '-c:v', 'libx264', '-preset', 'slow', '-crf', '17', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-vf', f'scale={W}:{H}:flags=lanczos', OUT], stdin=subprocess.PIPE)
         t0 = time.time(); n = 0; tail = None

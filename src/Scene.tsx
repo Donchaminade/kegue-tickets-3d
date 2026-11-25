@@ -1,6 +1,8 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
-import { CameraControls, PerformanceMonitor, Stars } from '@react-three/drei'
+import { CameraControls, Line, PerformanceMonitor, Stars } from '@react-three/drei'
+import { Bloom, EffectComposer } from '@react-three/postprocessing'
+import type { BloomEffect } from 'postprocessing'
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
@@ -10,6 +12,31 @@ import {
 } from './stadium'
 import { useApp } from './store'
 import { camRef, flyIntro, selectBlock } from './cam'
+
+// ---------- night factor: 1 = black glowing aerial view, 0 = studio close-up ----------
+export const night = { value: 1 }
+const nightU = { value: 1 }
+export const shortName = (b: Block) =>
+  b.tier === 'loge' ? `L${b.id.slice(1)}` : b.name.replace(/^(Honneur |Latérale |Virage (Est|Ouest) )/, '')
+
+function NightDriver({ lights }: { lights: React.RefObject<(THREE.Light | null)[]> }) {
+  const phase = useApp((s) => s.phase)
+  const { scene } = useThree()
+  const base = useRef<number[] | null>(null)
+  useFrame((_, dt) => {
+    const target = phase === 'aerial' ? 1 : 0
+    // slow fade so the dive feels like going from the night overview into the lit bowl
+    night.value += (target - night.value) * Math.min(1, dt * (target ? 1.6 : 2.2))
+    if (Math.abs(target - night.value) < 0.001) night.value = target
+    nightU.value = night.value
+    const ls = lights.current
+    if (!base.current) base.current = ls.map((l) => l?.intensity ?? 0)
+    const k = 1 - 0.93 * night.value
+    ls.forEach((l, i) => l && (l.intensity = base.current![i] * k))
+    scene.environmentIntensity = 0.55 * (1 - 0.9 * night.value)
+  })
+  return null
+}
 
 // ---------- geometry helpers ----------
 function tSamples(t0 = 0, t1 = 1, curveN = 44, straightN = 8) {
@@ -291,6 +318,63 @@ for (const b of BLOCKS)
     }
 
 
+/** Self-lit seats in the aerial view: bluish white for the blue stands, warm for honneur/VIP, dim when sold. */
+function seatGlow(sh: THREE.WebGLProgramParametersWithUniforms) {
+  sh.uniforms.uNight = nightU
+  sh.fragmentShader = sh.fragmentShader
+    .replace('#include <common>', '#include <common>\nuniform float uNight;')
+    .replace(
+      '#include <emissivemap_fragment>',
+      `#include <emissivemap_fragment>
+      float lum = max(vColor.r, max(vColor.g, vColor.b));
+      float warm = step(vColor.b, vColor.r);
+      vec3 glowC = mix(mix(vColor.rgb, vec3(0.58, 0.74, 1.0) * lum * 1.1, 0.55), vColor.rgb * vec3(1.0, 0.82, 0.6) * 1.1, warm);
+      totalEmissiveRadiance += glowC * uNight * 1.35 * smoothstep(0.08, 0.25, lum);`,
+    )
+}
+
+// ---------- section numbers (thin labels around the bowl, aerial only) ----------
+function numTexture(t: string) {
+  const cv = document.createElement('canvas')
+  cv.width = 128
+  cv.height = 64
+  const g = cv.getContext('2d')!
+  g.fillStyle = '#ffffff'
+  g.textAlign = 'center'
+  g.textBaseline = 'middle'
+  g.font = '300 40px "Plus Jakarta Sans Variable", system-ui, sans-serif'
+  g.fillText(t, 64, 34)
+  const tex = new THREE.CanvasTexture(cv)
+  tex.colorSpace = THREE.SRGBColorSpace
+  return tex
+}
+function SectionNumbers() {
+  const items = useMemo(
+    () =>
+      BLOCKS.filter((b) => b.tier !== 'loge').map((b) => {
+        const T = b.tier === 'bas' ? LOWER : UPPER
+        const p = shape((b.t0 + b.t1) / 2, b.tier === 'bas' ? LOWER.d0 - 3.2 : FACADE_D + 4.5)
+        const mat = new THREE.SpriteMaterial({ map: numTexture(shortName(b)), transparent: true, depthWrite: false, toneMapped: false, opacity: 0 })
+        return { id: b.id, pos: [p.x, b.tier === 'bas' ? 1.2 : rowY(T, T.rows - 1) + 2.5, p.z] as [number, number, number], mat }
+      }),
+    [],
+  )
+  useFrame(() => {
+    const o = Math.max(0, night.value * 1.25 - 0.25) * 0.62
+    for (const it of items) {
+      it.mat.opacity = o
+      it.mat.visible = o > 0.01
+    }
+  })
+  return (
+    <group>
+      {items.map((it) => (
+        <sprite key={it.id} position={it.pos} scale={[5, 2.5, 1]} material={it.mat} raycast={() => null} />
+      ))}
+    </group>
+  )
+}
+
 function Seats() {
   const ref = useRef<THREE.InstancedMesh>(null)
   const version = useApp((s) => s.version)
@@ -328,7 +412,7 @@ function Seats() {
   }, [version, blockId])
   return (
     <instancedMesh ref={ref} args={[seatGeo, undefined, count]} raycast={() => null} frustumCulled={false}>
-      <meshStandardMaterial vertexColors roughness={0.42} metalness={0.05} envMapIntensity={0.9} />
+      <meshStandardMaterial vertexColors roughness={0.42} metalness={0.05} envMapIntensity={0.9} onBeforeCompile={seatGlow} />
     </instancedMesh>
   )
 }
@@ -351,7 +435,7 @@ function Zone({ b }: { b: Block }) {
   const phase = useApp((s) => s.phase)
   const set = useApp((s) => s.set)
   const mat = useRef<THREE.MeshBasicMaterial>(null)
-  const target = hover ? 0.26 : sel && phase === 'block' ? 0.14 : 0
+  const target = hover ? (phase === 'aerial' ? 0.32 : 0.22) : sel && phase === 'block' ? 0.14 : 0
   useFrame((_, dt) => {
     const m = mat.current
     if (!m) return
@@ -378,7 +462,7 @@ function Zone({ b }: { b: Block }) {
         selectBlock(b)
       }}
     >
-      <meshBasicMaterial ref={mat} color={CATS[b.cat].color} transparent opacity={0} depthWrite={false} side={THREE.DoubleSide} toneMapped={false} />
+      <meshBasicMaterial ref={mat} color={CATS[b.cat].color} transparent opacity={0} depthWrite={false} depthTest={phase !== "aerial"} side={THREE.DoubleSide} toneMapped={false} />
     </mesh>
   )
 }
@@ -782,10 +866,10 @@ function outlineOf(b: Block) {
     })
   }
   pts.push(pts[0].clone())
-  const g = new THREE.BufferGeometry().setFromPoints(pts)
-  return g
+  return pts
 }
 function BlockHighlight() {
+  const size = useThree((s) => s.size)
   const hover = useApp((s) => s.hover?.id ?? null)
   const blockId = useApp((s) => s.blockId)
   const phase = useApp((s) => s.phase)
@@ -793,18 +877,18 @@ function BlockHighlight() {
   const b = id ? BLOCKS.find((x) => x.id === id) ?? null : null
   const data = useMemo(() => {
     if (!b) return null
-    const line = new THREE.Line(outlineOf(b), new THREE.LineDashedMaterial({ color: '#ffffff', dashSize: 0.9, gapSize: 0.5, transparent: true, opacity: 0.95, depthTest: false }))
-    line.computeLineDistances()
-    line.renderOrder = 10
+    const line = outlineOf(b)
     const c = b.tier === 'loge' ? seatPose(b, 0, 2) : seatPose(b, b.rows - 1, Math.floor(b.cols / 2))
-    const tex = labelTexture(b.tier === 'loge' ? b.name.replace('Loge VIP', 'LOGE') : b.id, `${CATS[b.cat].short} · ${CATS[b.cat].price.toLocaleString('fr-FR').replace(/\u202f|\u00a0/g, ' ')} F`)
+    const tex = labelTexture(b.tier === 'loge' ? b.name.replace('Loge VIP', 'LOGE') : `BLOC ${shortName(b)}`, `${CATS[b.cat].short} · ${CATS[b.cat].price.toLocaleString('fr-FR').replace(/\u202f|\u00a0/g, ' ')} F`)
     return { line, pos: [c.x + c.nx * 2, c.y + (b.tier === 'loge' ? 6 : 4.5), c.z + c.nz * 2] as [number, number, number], tex }
   }, [b])
   if (!data || phase === 'seat' || phase === 'checkout' || phase === 'ticket') return null
+  // on phones the bottom sheet already names the block: keep the 3D label for the aerial view only
+  const showLabel = phase === 'aerial' || size.width >= 640
   return (
     <group>
-      <primitive object={data.line} />
-      <sprite position={data.pos} scale={[12, 3.75, 1]} renderOrder={11}>
+      <Line points={data.line} color="#ffffff" lineWidth={phase === 'aerial' ? 2.6 : 2.2} dashed dashSize={phase === 'aerial' ? 1.6 : 0.9} gapSize={phase === 'aerial' ? 1.0 : 0.5} transparent opacity={0.95} depthTest={false} renderOrder={10} raycast={() => null} />
+      <sprite visible={showLabel} position={data.pos} scale={phase === 'aerial' ? [20, 6.25, 1] : [12, 3.75, 1]} renderOrder={11}>
         <spriteMaterial map={data.tex} transparent depthTest={false} toneMapped={false} />
       </sprite>
     </group>
@@ -905,8 +989,30 @@ function Ready() {
   return null
 }
 
+const lowEnd = () => {
+  const n = navigator as Navigator & { deviceMemory?: number }
+  return (n.hardwareConcurrency || 8) <= 4 || (n.deviceMemory ?? 8) <= 3
+}
+
+function Glow({ on }: { on: boolean }) {
+  const ref = useRef<BloomEffect>(null)
+  useFrame(() => {
+    if (ref.current) ref.current.intensity = 0.25 + 1.7 * night.value
+  })
+  if (!on) return null
+  return (
+    <EffectComposer multisampling={(window.devicePixelRatio || 1) > 1.5 ? 0 : 4} enableNormalPass={false}>
+      <Bloom ref={ref} mipmapBlur luminanceThreshold={0.62} luminanceSmoothing={0.25} intensity={1.6} radius={0.72} />
+    </EffectComposer>
+  )
+}
+
 export default function Scene() {
-  const [dpr, setDpr] = useState(() => Math.min(window.devicePixelRatio || 1, useApp.getState().demo ? 1 : 1.75))
+  const [dpr, setDpr] = useState(() => Math.min(window.devicePixelRatio || 1, useApp.getState().demo ? 1 : lowEnd() ? 1.25 : 1.75))
+  // bloom only where affordable: off on low-end devices, switched off if the frame rate drops
+  const [bloom, setBloom] = useState(() => { const q = new URLSearchParams(location.search); return q.has('bloom') || (!lowEnd() && !q.has('nobloom')) })
+  const forceBloom = new URLSearchParams(location.search).has('bloom')
+  const lights = useRef<(THREE.Light | null)[]>([])
   return (
     <Canvas
       dpr={dpr}
@@ -915,13 +1021,14 @@ export default function Scene() {
       onPointerMissed={() => useApp.getState().hover && !useApp.getState().demo && useApp.getState().set({ hover: null })}
       style={{ position: 'absolute', inset: 0, touchAction: 'none' }}
     >
-      <PerformanceMonitor onDecline={() => setDpr((d) => Math.max(0.8, d - 0.35))} onIncline={() => setDpr((d) => Math.min(window.devicePixelRatio || 1, 1.75, d + 0.25))} />
+      <PerformanceMonitor flipflops={3} onFallback={() => !forceBloom && setBloom(false)} onDecline={() => { setDpr((d) => Math.max(0.8, d - 0.35)); if (!forceBloom && !useApp.getState().demo) setBloom(false) }} onIncline={() => setDpr((d) => Math.min(window.devicePixelRatio || 1, 1.75, d + 0.25))} />
       <color attach="background" args={['#040507']} />
       <fog attach="fog" args={['#05070b', 240, 720]} />
       <StudioEnv />
-      <hemisphereLight args={['#eef3ff', '#3b3226', 0.75]} />
-      <directionalLight position={[-40, 140, 60]} intensity={1.6} color="#ffffff" />
-      <directionalLight position={[70, 90, -80]} intensity={0.7} color="#e8eeff" />
+      <hemisphereLight ref={(l) => { lights.current[0] = l }} args={['#eef3ff', '#3b3226', 0.75]} />
+      <directionalLight ref={(l) => { lights.current[1] = l }} position={[-40, 140, 60]} intensity={1.6} color="#ffffff" />
+      <directionalLight ref={(l) => { lights.current[2] = l }} position={[70, 90, -80]} intensity={0.7} color="#e8eeff" />
+      <NightDriver lights={lights} />
       <Sky />
       <Stars radius={500} depth={60} count={1500} factor={6} fade speed={0.4} />
       <Ground />
@@ -934,10 +1041,12 @@ export default function Scene() {
       <Floodlights />
       <City />
       <Zones />
+      <SectionNumbers />
       <SeatMarker />
       <BlockHighlight />
       <Rig />
       <Ready />
+      <Glow on={bloom} />
     </Canvas>
   )
 }
