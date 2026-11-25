@@ -4,7 +4,7 @@ import QRCode from 'qrcode'
 import {
   ArrowLeft, Armchair, Check, ChevronRight, Crown, Download, Eye, Hand, Loader2, Minus, MousePointer2, Orbit, Plus, RotateCw, ShieldCheck, Smartphone, Sparkles, Users,
 } from 'lucide-react'
-import { BLOCKS, BLOCK_BY_ID, CATS, STADIUM, fcfa, freeCount, type Block, type Cat } from './stadium'
+import { BLOCKS, BLOCK_BY_ID, CATS, DEMO_SEAT, STADIUM, fcfa, freeCount, type Block, type Cat } from './stadium'
 import { getBlock, liveTick, pickSeats, priceOf, useApp, type Op } from './store'
 import { flyAerial, flyBlock, flyLoges, flySeat } from './cam'
 import { runDemo } from './demo'
@@ -255,6 +255,8 @@ function SeatGrid({ b }: { b: Block }) {
 }
 
 function bestSeat(b: Block) {
+  // the showcase seat (same one as the auto demo) so every capture shows the same ticket
+  if (b.id === DEMO_SEAT.block) return { r: DEMO_SEAT.r, c: DEMO_SEAT.c }
   let best: { r: number; c: number } | null = null
   let score = Infinity
   for (let r = 0; r < b.rows; r++)

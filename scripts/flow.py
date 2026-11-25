@@ -11,6 +11,8 @@ async def run():
         pg.on('pageerror', lambda e: errs.append(str(e)))
         pg.on('console', lambda m: m.type == 'error' and errs.append(m.text))
         await pg.goto(U)
+        await pg.add_style_tag(content='canvas{filter:none!important}')  # CSS blur is very slow to screenshot in software rendering
+        pg.set_default_timeout(90000)
         await pg.wait_for_timeout(8000)
         await pg.evaluate("window.__kg.useApp.getState().set({autoRotate:false})")
         await pg.wait_for_timeout(2500)
