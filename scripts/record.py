@@ -8,6 +8,8 @@ OUT = sys.argv[4]
 MOB = len(sys.argv) > 5 and sys.argv[5] == 'mobile'
 MAXF = int(sys.argv[6]) if len(sys.argv) > 6 else 99999
 FPS = 30
+import os
+RD = os.environ.get('RDPR') and '&rdpr=' + os.environ['RDPR'] or ''
 SCALE = 2 if MOB else 1
 async def run():
     async with async_playwright() as p:
@@ -19,7 +21,7 @@ async def run():
         pg = await ctx.new_page()
         pg.set_default_timeout(120000)
         pg.on('pageerror', lambda e: print('ERR', e))
-        await pg.goto(U + ('&' if '?' in U else '?') + 'demo=1&capture=1&bloom=1')
+        await pg.goto(U + ('&' if '?' in U else '?') + 'demo=1&capture=1&bloom=1' + RD)
         await pg.wait_for_function('window.__captureMode === true')
         ff = subprocess.Popen(['ffmpeg', '-loglevel', 'error', '-y', '-f', 'image2pipe', '-framerate', str(FPS), '-c:v', 'mjpeg', '-i', '-', '-c:v', 'libx264', '-preset', 'slow', '-crf', '17', '-pix_fmt', 'yuv420p', '-movflags', '+faststart', '-vf', f'scale={W}:{H}:flags=lanczos', OUT], stdin=subprocess.PIPE)
         t0 = time.time(); n = 0; tail = None

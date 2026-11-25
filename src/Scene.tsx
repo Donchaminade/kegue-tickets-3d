@@ -1001,17 +1001,18 @@ function Glow({ on }: { on: boolean }) {
   })
   if (!on) return null
   return (
-    <EffectComposer multisampling={(window.devicePixelRatio || 1) > 1.5 ? 0 : 4} enableNormalPass={false}>
+    <EffectComposer multisampling={(window.devicePixelRatio || 1) > 1.5 || location.search.includes('capture') ? 0 : 4} enableNormalPass={false}>
       <Bloom ref={ref} mipmapBlur luminanceThreshold={0.62} luminanceSmoothing={0.25} intensity={1.6} radius={0.72} />
     </EffectComposer>
   )
 }
 
 export default function Scene() {
-  const [dpr, setDpr] = useState(() => Math.min(window.devicePixelRatio || 1, useApp.getState().demo ? 1 : lowEnd() ? 1.25 : 1.75))
+  const [dpr, setDpr] = useState(() => Number(new URLSearchParams(location.search).get('rdpr')) || Math.min(window.devicePixelRatio || 1, useApp.getState().demo ? 1 : lowEnd() ? 1.25 : 1.75))
   // bloom only where affordable: off on low-end devices, switched off if the frame rate drops
   const [bloom, setBloom] = useState(() => { const q = new URLSearchParams(location.search); return q.has('bloom') || (!lowEnd() && !q.has('nobloom')) })
   const forceBloom = new URLSearchParams(location.search).has('bloom')
+  const fixedDpr = new URLSearchParams(location.search).has('rdpr')
   const lights = useRef<(THREE.Light | null)[]>([])
   return (
     <Canvas
@@ -1021,7 +1022,7 @@ export default function Scene() {
       onPointerMissed={() => useApp.getState().hover && !useApp.getState().demo && useApp.getState().set({ hover: null })}
       style={{ position: 'absolute', inset: 0, touchAction: 'none' }}
     >
-      <PerformanceMonitor flipflops={3} onFallback={() => !forceBloom && setBloom(false)} onDecline={() => { setDpr((d) => Math.max(0.8, d - 0.35)); if (!forceBloom && !useApp.getState().demo) setBloom(false) }} onIncline={() => setDpr((d) => Math.min(window.devicePixelRatio || 1, 1.75, d + 0.25))} />
+      <PerformanceMonitor flipflops={3} onFallback={() => !forceBloom && setBloom(false)} onDecline={() => { if (fixedDpr) return; setDpr((d) => Math.max(0.8, d - 0.35)); if (!forceBloom && !useApp.getState().demo) setBloom(false) }} onIncline={() => !fixedDpr && setDpr((d) => Math.min(window.devicePixelRatio || 1, 1.75, d + 0.25))} />
       <color attach="background" args={['#040507']} />
       <fog attach="fog" args={['#05070b', 240, 720]} />
       <StudioEnv />
