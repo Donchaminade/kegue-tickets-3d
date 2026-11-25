@@ -882,6 +882,13 @@ function Rig() {
     blur.current += (target - blur.current) * Math.min(1, dt * 12)
     const v = blur.current < 0.05 ? '' : `blur(${blur.current.toFixed(2)}px)`
     if (gl.domElement.style.filter !== v) gl.domElement.style.filter = v
+    // depth precision: push the near plane out when the camera is far (no z-fighting on the pitch)
+    const pc = camera as THREE.PerspectiveCamera
+    const near = Math.min(1.6, Math.max(0.15, camera.position.length() * 0.004))
+    if (Math.abs(pc.near - near) > 0.02) {
+      pc.near = near
+      pc.updateProjectionMatrix()
+    }
   })
   return <CameraControls ref={ref} makeDefault smoothTime={0.55} draggingSmoothTime={0.12} />
 }
@@ -901,7 +908,7 @@ export default function Scene() {
     <Canvas
       dpr={dpr}
       camera={{ fov: 42, near: 0.25, far: 2500, position: [-260, 260, 380] }}
-      gl={{ antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: false, logarithmicDepthBuffer: true }}
+      gl={{ antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: false }}
       onPointerMissed={() => useApp.getState().hover && !useApp.getState().demo && useApp.getState().set({ hover: null })}
       style={{ position: 'absolute', inset: 0, touchAction: 'none' }}
     >
