@@ -7,7 +7,7 @@ Mode démonstration automatique (pour les vidéos) : https://kegue-tickets-3d.ve
 
 > Concept indépendant, non officiel. Aucun lien avec la Fédération togolaise de football ni avec la gestion du stade. Les prix et les disponibilités sont fictifs, et aucun paiement réel n'est effectué.
 
-**Nouveau dans la V2 :** un rendu « studio » inspiré du travail d'Ascenta Studio. Sièges modélisés avec accoudoirs aux couleurs de chaque catégorie, loges VIP orangées et lumineuses, panneaux LED anthracite qui affichent les prix directement dans la 3D, contour pointillé et étiquette du bloc survolé, siège choisi qui s'illumine en ambre, plongées de caméra avec flou de mouvement et interface plus discrète (barre de réservation en pilule sur ordinateur). Le mode démonstration choisit maintenant toujours la même place (Honneur 1D, rang 7, sièges 9 et 10) : vidéos et captures restent cohérentes entre ordinateur et mobile.
+**Nouveau dans la V2 :** une direction visuelle inspirée du travail d'Ascenta Studio. La vue aérienne passe en mode nocturne : fond noir, sièges auto-éclairés en blanc bleuté avec halo lumineux (bloom), tribune d'honneur et loges en orange chaud, numéros de blocs en texte fin autour du stade. Dès que la caméra plonge vers un bloc, l'éclairage bascule en rendu « studio ». Sièges modélisés avec accoudoirs aux couleurs de chaque catégorie, loges VIP orangées et lumineuses, panneaux LED anthracite qui affichent les prix directement dans la 3D, contour pointillé et étiquette du bloc survolé, siège choisi qui s'illumine en ambre, plongées de caméra avec flou de mouvement et interface plus discrète (barre de réservation en pilule sur ordinateur). Le mode démonstration choisit maintenant toujours la même place (Honneur 1D, rang 7, sièges 9 et 10) : vidéos et captures restent cohérentes entre ordinateur et mobile.
 
 La première version reste disponible sur le tag `v1` : https://github.com/Donchaminade/kegue-tickets-3d/tree/v1
 
@@ -60,7 +60,7 @@ Aucun fichier Blender ni modèle lourd à télécharger : tout le stade est gén
 - Forme ovale d'un stade avec piste d'athlétisme (deux lignes droites et deux virages), pelouse aux dimensions 105 × 68 m avec son marquage dessiné sur un canvas.
 - Deux anneaux de gradins tout autour, une bande de loges VIP vitrées et une toiture sur la tribune principale, des panneaux LED qui affichent la catégorie et le prix de chaque tribune, quatre pylônes d'éclairage.
 - Plus de 11 000 sièges individuels (assise, dossier, accoudoirs) dans **un seul `InstancedMesh`** (un seul appel de dessin). La couleur de chaque siège indique sa catégorie, s'il est libre ou déjà vendu (graphite).
-- Éclairage d'ambiance studio (`RoomEnvironment`) pour des matériaux nets sans ombres temps réel.
+- Éclairage d'ambiance studio (`RoomEnvironment`) pour des matériaux nets sans ombres temps réel, qui s'éteint progressivement en vue aérienne au profit de sièges auto-éclairés (un seul shader, aucune géométrie en plus).
 - Zones invisibles par bloc pour le survol et le clic, sans lancer de rayons sur les 11 000 sièges.
 
 Repères réels utilisés : le Stade de Kégué est un stade multifonction inauguré en 2000, avec piste d'athlétisme, d'une capacité d'environ 25 000 places après les travaux de mise aux normes. La disposition détaillée (blocs, loges, portes) est une interprétation libre.
@@ -69,7 +69,8 @@ Repères réels utilisés : le Stade de Kégué est un stade multifonction inaug
 
 - La scène 3D est chargée à part (`React.lazy`) : l'interface s'affiche tout de suite.
 - Résolution adaptative (`PerformanceMonitor`) : la densité de pixels baisse si l'appareil peine.
-- Pas d'ombres temps réel ni de post-traitement, des matériaux simples et une géométrie fusionnée.
+- Pas d'ombres temps réel, des matériaux simples et une géométrie fusionnée.
+- Halo lumineux (bloom) uniquement là où l'appareil le permet : désactivé sur les appareils modestes (4 cœurs ou moins, peu de mémoire) et coupé automatiquement si la fluidité baisse. `?nobloom` le désactive, `?bloom` le force.
 - `100dvh`, `viewport-fit=cover` et marges `safe-area` : rien n'est caché sous la barre de Safari sur iPhone. Sur mobile, les étapes s'affichent dans une feuille du bas qui défile.
 
 ## Stack
