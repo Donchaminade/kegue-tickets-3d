@@ -1,4 +1,4 @@
-# Kégué Billetterie 3D
+# Kégué Billetterie 3D · V2
 
 Billetterie 3D du **Stade de Kégué** (Lomé, Togo), centrée sur le stade lui-même. On survole le stade, on voit le prix et les places restantes de chaque tribune, la caméra plonge dans le bloc choisi, on regarde le terrain **depuis son propre siège** avant de payer, puis on règle par **T-Money ou Flooz** et on reçoit un e-billet de place avec QR code.
 
@@ -6,6 +6,10 @@ Billetterie 3D du **Stade de Kégué** (Lomé, Togo), centrée sur le stade lui-
 Mode démonstration automatique (pour les vidéos) : https://kegue-tickets-3d.vercel.app/?demo=1
 
 > Concept indépendant, non officiel. Aucun lien avec la Fédération togolaise de football ni avec la gestion du stade. Les prix et les disponibilités sont fictifs, et aucun paiement réel n'est effectué.
+
+**Nouveau dans la V2 :** un rendu « studio » inspiré du travail d'Ascenta Studio. Sièges modélisés avec accoudoirs aux couleurs de chaque catégorie, loges VIP orangées et lumineuses, panneaux LED anthracite qui affichent les prix directement dans la 3D, contour pointillé et étiquette du bloc survolé, siège choisi qui s'illumine en ambre, plongées de caméra avec flou de mouvement et interface plus discrète (barre de réservation en pilule sur ordinateur). Le mode démonstration choisit maintenant toujours la même place (Honneur 1D, rang 7, sièges 9 et 10) : vidéos et captures restent cohérentes entre ordinateur et mobile.
+
+La première version reste disponible sur le tag `v1` : https://github.com/Donchaminade/kegue-tickets-3d/tree/v1
 
 ![Vue aérienne du stade](screenshots/desktop-1-aerial.jpg)
 
@@ -54,8 +58,9 @@ Catégories de la démo : Loges VIP (50 000 FCFA), Tribune d'honneur (15 000 FCF
 Aucun fichier Blender ni modèle lourd à télécharger : tout le stade est généré dans le navigateur.
 
 - Forme ovale d'un stade avec piste d'athlétisme (deux lignes droites et deux virages), pelouse aux dimensions 105 × 68 m avec son marquage dessiné sur un canvas.
-- Deux anneaux de gradins tout autour, une bande de loges VIP vitrées et une toiture sur la tribune principale, des bandeaux LED aux couleurs du Togo, quatre pylônes d'éclairage.
-- Plus de 11 000 sièges individuels dans **un seul `InstancedMesh`** (un seul appel de dessin). La couleur de chaque siège indique sa catégorie, s'il est libre ou déjà vendu.
+- Deux anneaux de gradins tout autour, une bande de loges VIP vitrées et une toiture sur la tribune principale, des panneaux LED qui affichent la catégorie et le prix de chaque tribune, quatre pylônes d'éclairage.
+- Plus de 11 000 sièges individuels (assise, dossier, accoudoirs) dans **un seul `InstancedMesh`** (un seul appel de dessin). La couleur de chaque siège indique sa catégorie, s'il est libre ou déjà vendu (graphite).
+- Éclairage d'ambiance studio (`RoomEnvironment`) pour des matériaux nets sans ombres temps réel.
 - Zones invisibles par bloc pour le survol et le clic, sans lancer de rayons sur les 11 000 sièges.
 
 Repères réels utilisés : le Stade de Kégué est un stade multifonction inauguré en 2000, avec piste d'athlétisme, d'une capacité d'environ 25 000 places après les travaux de mise aux normes. La disposition détaillée (blocs, loges, portes) est une interprétation libre.
@@ -87,5 +92,7 @@ Build de production : `npm run build` puis `npm run preview`.
 ## Crédits
 
 Concept original : **Preston Odep**, dont la billetterie 3D du Raila Odinga Stadium a inspiré ce projet. Cette version adapte l'idée au Stade de Kégué, avec paiement Mobile Money.
+
+Direction visuelle de la V2 : inspirée du réel « The future of basketball ticketing » d'**Ascenta Studio** (@ascenta.studio), adapté ici à un stade de football avec piste.
 
 Réalisé par [Donchaminade](https://github.com/Donchaminade). Licence MIT.

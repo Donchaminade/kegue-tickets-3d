@@ -1,5 +1,5 @@
 // ?demo=1 : scripted walkthrough used for screen recordings.
-import { BLOCK_BY_ID, blockCentre, type Block } from './stadium'
+import { BLOCK_BY_ID, DEMO_SEAT, blockCentre, type Block } from './stadium'
 import { useApp } from './store'
 import { camRef, selectBlock } from './cam'
 
@@ -37,21 +37,6 @@ async function hoverBlock(id: string, hold = 1150) {
   await sleep(600)
   st().set({ hover: { id, x: p.x, y: p.y } })
   await sleep(hold)
-}
-
-function freeNear(b: Block, r0: number, c0: number) {
-  let best = { r: r0, c: c0 }
-  let d = Infinity
-  for (let r = 0; r < b.rows; r++)
-    for (let c = 0; c < b.cols - 1; c++) {
-      if (b.sold[r * b.cols + c] || b.sold[r * b.cols + c + 1]) continue
-      const s = Math.abs(r - r0) * 1.5 + Math.abs(c - c0)
-      if (s < d) {
-        d = s
-        best = { r, c }
-      }
-    }
-  return best
 }
 
 let running = false
@@ -102,7 +87,9 @@ export async function runDemo() {
   await sleep(1900)
 
   // 5. choose a seat
-  const seat = freeNear(target, 5, 8)
+  const seat = { r: DEMO_SEAT.r, c: DEMO_SEAT.c }
+  target.sold[seat.r * target.cols + seat.c] = 0
+  target.sold[seat.r * target.cols + seat.c + 1] = 0
   const cell = `seat-${seat.r}-${seat.c}`
   const e = el(cell)
   if (e) {

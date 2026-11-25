@@ -1,5 +1,5 @@
 import { create } from 'zustand'
-import { BLOCK_BY_ID, CATS, rand, type Block } from './stadium'
+import { BLOCK_BY_ID, CATS, isDemoSeat, rand, type Block } from './stadium'
 
 export type Phase = 'aerial' | 'block' | 'seat' | 'checkout' | 'ticket'
 export type Op = 'tmoney' | 'flooz'
@@ -80,6 +80,7 @@ export function liveTick(blocks: Block[]) {
     if (b.sold[i]) continue
     const r = Math.floor(i / b.cols)
     const c = i % b.cols
+    if (isDemoSeat(b.id, r, c)) continue
     if (st.blockId === b.id && st.seat && Math.abs(st.seat.r - r) <= 0 && Math.abs(st.seat.c - c) <= 4) continue
     b.sold[i] = 1
     done++

@@ -2,7 +2,7 @@ import { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
 import QRCode from 'qrcode'
 import {
-  ArrowLeft, Armchair, MapPin, Check, ChevronRight, Crown, Download, Eye, Hand, Loader2, Minus, MousePointer2, Orbit, Plus, RotateCw, ShieldCheck, Smartphone, Sparkles, Ticket, Users,
+  ArrowLeft, Armchair, Check, ChevronRight, Crown, Download, Eye, Hand, Loader2, Minus, MousePointer2, Orbit, Plus, RotateCw, ShieldCheck, Smartphone, Sparkles, Users,
 } from 'lucide-react'
 import { BLOCKS, BLOCK_BY_ID, CATS, STADIUM, fcfa, freeCount, type Block, type Cat } from './stadium'
 import { getBlock, liveTick, pickSeats, priceOf, useApp, type Op } from './store'
@@ -26,22 +26,16 @@ const glass = 'bg-[#0b1020]/72 backdrop-blur-xl border border-white/10 shadow-[0
 
 function TopBar() {
   return (
-    <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-2 px-3 pt-[max(env(safe-area-inset-top),12px)] sm:px-5">
-      <div className={`pointer-events-auto flex items-center gap-2.5 rounded-2xl px-3 py-2 ${glass}`}>
-        <div className="grid h-8 w-8 place-items-center rounded-xl bg-gradient-to-br from-[#ffce1f] via-[#1fae55] to-[#0b6b3a] text-[#08110b]">
-          <Ticket className="h-4 w-4" strokeWidth={2.4} />
+    <div className="pointer-events-none absolute inset-x-0 top-0 z-20 flex items-start justify-between gap-3 px-4 pt-[max(env(safe-area-inset-top),14px)] [text-shadow:0_1px_12px_rgba(0,0,0,0.7)] sm:px-6">
+      <div className="leading-tight">
+        <div className="text-[13px] font-extrabold uppercase tracking-[0.28em] text-white">
+          Stade de Kégué <span className="text-[#ffb347]">3D</span>
         </div>
-        <div className="leading-tight">
-          <div className="text-[13px] font-extrabold tracking-tight text-white">Kégué Billetterie <span className="text-[#ffce1f]">3D</span></div>
-          <div className="text-[10.5px] text-white/55">Concept indépendant, non officiel</div>
-        </div>
+        <div className="mt-0.5 text-[10.5px] text-white/55">Concept indépendant, non officiel</div>
       </div>
-      <div className={`pointer-events-auto hidden items-center gap-3 rounded-2xl px-4 py-2 sm:flex ${glass}`}>
-        <MapPin className="h-4 w-4 text-[#ffce1f]" />
-        <div className="text-[11.5px] leading-tight text-white/65">
-          <div className="text-[13px] font-bold text-white">{STADIUM.name}</div>
-          <div>{STADIUM.city} · {STADIUM.capacity}</div>
-        </div>
+      <div className="hidden text-right leading-tight sm:block">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.22em] text-white/85">{STADIUM.city}</div>
+        <div className="mt-0.5 text-[10.5px] text-white/55">{STADIUM.capacity} · Billetterie en ligne</div>
       </div>
     </div>
   )
@@ -344,6 +338,46 @@ function BlockPanel({ b }: { b: Block }) {
         className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-[#ffce1f] to-[#f5a524] text-[14px] font-extrabold text-[#141006] shadow-[0_8px_30px_-8px_rgba(255,206,31,0.6)] transition enabled:hover:brightness-105 enabled:active:scale-[0.98] disabled:opacity-40"
       >
         <Eye className="h-4.5 w-4.5" /> Voir le terrain depuis ce siège
+      </button>
+    </div>
+  )
+}
+
+function SeatPill({ b }: { b: Block }) {
+  const live = useApp((s) => s.seat)
+  const keep = useRef(live)
+  if (live) keep.current = live
+  const seat = keep.current
+  const set = useApp((s) => s.set)
+  if (!seat) return null
+  return (
+    <div className="flex items-center gap-4 pl-5">
+      <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ background: CATS[b.cat].color, boxShadow: `0 0 12px ${CATS[b.cat].color}` }} />
+      <div className="min-w-0 flex-1 leading-tight">
+        <div className="truncate text-[14px] font-extrabold text-white">
+          {b.name} · Rang {seat.r + 1} · Siège {seat.c + 1}
+        </div>
+        <div className="mt-0.5 flex items-center gap-1.5 text-[11.5px] text-white/55">
+          <Hand className="h-3.5 w-3.5" /> Vue réelle depuis votre siège · glissez pour regarder autour
+        </div>
+      </div>
+      <div className="text-[15px] font-extrabold text-white">{fcfa(priceOf(b))}</div>
+      <button
+        data-demo="btn-change"
+        onClick={() => {
+          set({ phase: 'block' })
+          flyBlock(b)
+        }}
+        className="h-11 rounded-full bg-white/[0.08] px-4 text-[13px] font-semibold text-white ring-1 ring-white/10 transition hover:bg-white/15"
+      >
+        Changer
+      </button>
+      <button
+        data-demo="btn-book"
+        onClick={() => set({ phase: 'checkout', payStep: 'recap' })}
+        className="h-11 rounded-full bg-[#ffc533] px-6 text-[13.5px] font-extrabold text-[#141006] shadow-[0_8px_30px_-8px_rgba(255,197,51,0.7)] transition hover:brightness-105 active:scale-[0.98]"
+      >
+        Réserver
       </button>
     </div>
   )
@@ -711,7 +745,19 @@ function Panel() {
     <>
       <AnimatePresence>{overlay && <motion.div key="dim" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="pointer-events-none absolute inset-0 z-20 bg-[#05070d]/45" />}</AnimatePresence>
       <AnimatePresence>
-        {open &&
+        {open && desktop && phase === 'seat' && b ? (
+          <motion.div
+            key="pill"
+            initial={{ y: 40, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: 40, opacity: 0 }}
+            transition={{ type: 'spring', stiffness: 260, damping: 28 }}
+            className={`pointer-events-auto absolute bottom-6 left-1/2 z-30 w-[min(820px,calc(100%-48px))] -translate-x-1/2 rounded-full p-2 ${glass}`}
+          >
+            <SeatPill b={b} />
+          </motion.div>
+        ) : null}
+        {open && !(desktop && phase === 'seat') &&
           (desktop ? (
             <motion.aside
               key="side"

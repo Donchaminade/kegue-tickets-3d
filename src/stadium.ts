@@ -7,11 +7,16 @@ export const TRACK_OUT = 46.4
 export type Cat = 'vip' | 'honneur' | 'laterale' | 'virage'
 
 export const CATS: Record<Cat, { label: string; short: string; price: number; color: string; seat: string }> = {
-  vip: { label: 'Loges VIP', short: 'VIP', price: 50000, color: '#f5c542', seat: '#f5c542' },
-  honneur: { label: "Tribune d'honneur", short: 'Honneur', price: 15000, color: '#e5484d', seat: '#e5484d' },
-  laterale: { label: 'Tribunes latérales', short: 'Latérales', price: 5000, color: '#22c55e', seat: '#1fae55' },
-  virage: { label: 'Virages populaires', short: 'Virages', price: 2000, color: '#3b82f6', seat: '#3a7be8' },
+  vip: { label: 'Loges VIP', short: 'VIP', price: 50000, color: '#f7b27a', seat: '#f3b48a' },
+  honneur: { label: "Tribune d'honneur", short: 'Honneur', price: 15000, color: '#f07a3e', seat: '#e8703a' },
+  laterale: { label: 'Tribunes latérales', short: 'Latérales', price: 5000, color: '#2f6bff', seat: '#1f56e0' },
+  virage: { label: 'Virages populaires', short: 'Virages', price: 2000, color: '#5aa0ff', seat: '#3d86f5' },
 }
+
+/** Fixed seat used by the auto-play demo (Rang 7, Sièges 9–10 in Honneur 1D) — always kept free. */
+export const DEMO_SEAT = { block: 'A14', r: 6, c: 8 }
+export const isDemoSeat = (id: string, r: number, c: number) =>
+  id === DEMO_SEAT.block && r === DEMO_SEAT.r && c >= DEMO_SEAT.c && c <= DEMO_SEAT.c + 1
 
 export const STADIUM = {
   name: 'Stade de Kégué',
@@ -76,6 +81,7 @@ function makeBlock(id: string, name: string, cat: Cat, tier: Block['tier'], t0: 
       const centre = 1 - Math.abs((c + 0.5) / cols - 0.5) * 0.5
       sold[r * cols + c] = rand() < occ * centre * (cat === 'vip' ? 1 : 1.05 - r / rows / 6) ? 1 : 0
     }
+  if (id === DEMO_SEAT.block) for (let k = 0; k < 2; k++) sold[DEMO_SEAT.r * cols + DEMO_SEAT.c + k] = 0
   return { id, name, cat, tier, t0, t1, rows, cols, sold, gate }
 }
 
@@ -143,7 +149,11 @@ export function seatPose(b: Block, r: number, c: number): SeatPose {
     return { x: p.x, y: LOGE.y0 + 0.25 + r * 0.45, z: p.z, nx: p.nx, nz: p.nz }
   }
   const tier = b.tier === 'bas' ? LOWER : UPPER
-  const t = b.t0 + ((c + 0.5) / b.cols) * (b.t1 - b.t0)
+  // leave a stair aisle (~1.2 m) at each block edge
+  const curve = b.t0 >= 0.25 && b.t0 < 0.5 ? true : b.t0 >= 0.75
+  const len = (b.t1 - b.t0) * 4 * (curve ? Math.PI * rowD(tier, r) : 2 * L)
+  const pad = Math.min(0.2, 0.62 / len) * (b.t1 - b.t0)
+  const t = b.t0 + pad + ((c + 0.5) / b.cols) * (b.t1 - b.t0 - 2 * pad)
   const p = shape(t, rowD(tier, r) + 0.42)
   return { x: p.x, y: rowY(tier, r), z: p.z, nx: p.nx, nz: p.nz }
 }

@@ -70,13 +70,13 @@ export function flyBlock(b: Block) {
 
 export function seatEye(b: Block, r: number, col: number) {
   const s = seatPose(b, r, col)
-  const ex = s.x + s.nx * 0.12
-  const ez = s.z + s.nz * 0.12
-  const ey = s.y + 1.2
+  const ex = s.x + s.nx * 0.35
+  const ez = s.z + s.nz * 0.35
+  const ey = s.y + 1.25
   const tx = s.x * 0.42
   const tz = s.z * 0.12
   const dx = tx - ex
-  const dy = -3 - ey
+  const dy = -6 - ey
   const dz = tz - ez
   const len = Math.hypot(dx, dy, dz)
   return { ex, ey, ez, dx: dx / len, dy: dy / len, dz: dz / len }

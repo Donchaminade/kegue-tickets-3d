@@ -3,6 +3,8 @@ import { Canvas, useFrame, useThree, type ThreeEvent } from '@react-three/fiber'
 import { CameraControls, PerformanceMonitor, Stars } from '@react-three/drei'
 import * as THREE from 'three'
 import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
+import { RoomEnvironment } from 'three/examples/jsm/environments/RoomEnvironment.js'
+import { pickSeats } from './store'
 import {
   BLOCKS, CATS, FACADE_D, L, LOGE, LOWER, TRACK_IN, TRACK_OUT, UPPER, rowD, rowY, seatPose, shape, type Block,
 } from './stadium'
@@ -69,9 +71,9 @@ function Bowl() {
   const geo = useMemo(() => {
     const prof: [number, number][] = []
     const cols: (THREE.Color | null)[] = []
-    const tread = new THREE.Color('#2c323e')
-    const riser = new THREE.Color('#1a1f29')
-    const wall = new THREE.Color('#232936')
+    const tread = new THREE.Color('#c3c8d0')
+    const riser = new THREE.Color('#8e95a1')
+    const wall = new THREE.Color('#2a2e37')
     const push = (p: [number, number], c: THREE.Color | null) => {
       if (prof.length) cols.push(c)
       prof.push(p)
@@ -102,53 +104,182 @@ function Bowl() {
     push([FACADE_D, top], tread)
     push([FACADE_D, top + 1.3], wall)
     push([FACADE_D + 0.5, top + 1.3], wall)
-    push([FACADE_D + 0.5, 0], new THREE.Color('#1c2230'))
+    push([FACADE_D + 0.5, 0], new THREE.Color('#3a3f4a'))
     return sweep(prof, tSamples())
   }, [])
   return (
     <mesh geometry={geo}>
-      <meshStandardMaterial vertexColors roughness={0.92} metalness={0.02} side={THREE.DoubleSide} />
+      <meshStandardMaterial vertexColors roughness={0.85} metalness={0.02} side={THREE.DoubleSide} envMapIntensity={0.4} />
     </mesh>
   )
 }
 
-// LED fascia bands in Togo colours (green / yellow / red)
-function Fascias() {
-  const geo = useMemo(() => {
-    const ts = tSamples(0, 1, 120, 40)
-    const green = new THREE.Color('#0f9d58').multiplyScalar(1.4)
-    const yellow = new THREE.Color('#ffce1f').multiplyScalar(1.3)
-    const red = new THREE.Color('#e5272d').multiplyScalar(1.3)
-    const a = sweep([[UPPER.d0 - 0.25, LOGE.y0 + 1.2], [UPPER.d0 - 0.25, LOGE.y0 + 2.1]], ts)
-    const b = sweep([[FACADE_D + 0.56, 15.4], [FACADE_D + 0.56, 16.6]], ts)
-    const c = sweep([[LOWER.d0 - 0.55, 0.25], [LOWER.d0 - 0.55, 1.45]], ts)
-    // colour by perimeter position: flag-like stripes
-    for (const g of [a, b, c]) {
-      const p = g.getAttribute('position')
-      const col = g.getAttribute('color')
-      for (let i = 0; i < p.count; i++) {
-        const ang = Math.atan2(p.getZ(i), p.getX(i))
-        const k = Math.floor(((ang + Math.PI) / (2 * Math.PI)) * 30) % 3
-        const cc = g === c ? (k === 0 ? green : k === 1 ? yellow : green) : k === 0 ? green : k === 1 ? yellow : red
-        col.setXYZ(i, cc.r, cc.g, cc.b)
-      }
+// ---------- LED ribbon boards with prices (text lives in the 3D, like the reference) ----------
+function boardTexture(text: string, accent: string) {
+  const W = 2048
+  const H = 128
+  const cv = document.createElement('canvas')
+  cv.width = W
+  cv.height = H
+  const g = cv.getContext('2d')!
+  g.fillStyle = '#14171e'
+  g.fillRect(0, 0, W, H)
+  g.fillStyle = accent
+  g.fillRect(0, H - 7, W, 7)
+  g.fillStyle = '#ffffff'
+  g.font = '800 64px "Plus Jakarta Sans Variable", system-ui, sans-serif'
+  g.textBaseline = 'middle'
+  const parts = text.split('|')
+  let x = 70
+  const gap = 90
+  // spaced lettering
+  const draw = (t: string, alpha: number, size: number) => {
+    g.globalAlpha = alpha
+    g.font = `800 ${size}px "Plus Jakarta Sans Variable", system-ui, sans-serif`
+    for (const ch of t) {
+      g.fillText(ch, x, H / 2 - 2)
+      x += g.measureText(ch).width + size * 0.16
     }
-    return mergeGeometries([a, b, c])
+    g.globalAlpha = 1
+  }
+  draw(parts[0], 1, 60)
+  x += gap * 0.6
+  if (parts[1]) draw(parts[1], 0.62, 46)
+  x += gap
+  g.fillStyle = accent
+  g.beginPath()
+  g.arc(x, H / 2 - 2, 9, 0, Math.PI * 2)
+  g.fill()
+  const used = x + gap
+  // repeat once more to fill the texture
+  const img = g.getImageData(0, 0, Math.min(W, Math.ceil(used)), H)
+  const out = document.createElement('canvas')
+  out.width = Math.ceil(used)
+  out.height = H
+  out.getContext('2d')!.putImageData(img, 0, 0)
+  const t = new THREE.CanvasTexture(out)
+  t.colorSpace = THREE.SRGBColorSpace
+  t.wrapS = THREE.RepeatWrapping
+  t.anisotropy = 8
+  return { tex: t, aspect: out.width / H }
+}
+
+/** Strip facing the pitch between t0..t1 at radius rad, with UVs for a repeating texture. */
+function board(t0: number, t1: number, rad: number, y0: number, y1: number, aspect: number, flip = false) {
+  const ts = tSamples(t0, t1, 160, 30)
+  const pos: number[] = []
+  const uv: number[] = []
+  const idx: number[] = []
+  const h = y1 - y0
+  let s = 0
+  let prev = shape(ts[0], rad)
+  ts.forEach((t, i) => {
+    const p = shape(t, rad)
+    s += Math.hypot(p.x - prev.x, p.z - prev.z)
+    prev = p
+    pos.push(p.x, y0, p.z, p.x, y1, p.z)
+    const u = ((flip ? -1 : 1) * s) / (h * aspect)
+    uv.push(u, 0, u, 1)
+    if (i) {
+      const a = (i - 1) * 2
+      idx.push(a, a + 1, a + 2, a + 1, a + 3, a + 2)
+    }
+  })
+  const g = new THREE.BufferGeometry()
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3))
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2))
+  g.setIndex(idx)
+  g.computeVertexNormals()
+  return g
+}
+
+const k = (n: number) => n.toLocaleString('fr-FR').replace(/\u202f|\u00a0/g, ' ')
+function LedBoards() {
+  const meshes = useMemo(() => {
+    const out: { geo: THREE.BufferGeometry; tex: THREE.Texture }[] = []
+    const texFor: Record<string, { tex: THREE.Texture; aspect: number }> = {}
+    const get = (key: string, text: string, accent: string) => (texFor[key] ??= boardTexture(text, accent))
+    const catText = (c: keyof typeof CATS) => `${CATS[c].label.toUpperCase()}|DÈS ${k(CATS[c].price)} FCFA`
+    const groups = new Map<string, THREE.BufferGeometry[]>()
+    const add = (key: string, g: THREE.BufferGeometry) => {
+      if (!groups.has(key)) groups.set(key, [])
+      groups.get(key)!.push(g)
+    }
+    for (const b of BLOCKS) {
+      if (b.tier === 'loge') continue
+      const tx = get(b.cat, catText(b.cat), CATS[b.cat].color)
+      if (b.tier === 'bas') add(b.cat, board(b.t0, b.t1, LOWER.d0 - 0.56, 0.2, 1.5, tx.aspect))
+      else if (!(b.t0 >= 0 && b.t1 <= 0.25)) add(b.cat, board(b.t0, b.t1, UPPER.d0 - 0.26, LOGE.y0 + 0.9, LOGE.y0 + 2.5, tx.aspect))
+    }
+    const vip = get('vip', catText('vip'), CATS.vip.color)
+    add('vip', board(0.02, 0.23, LOGE.d0 - 0.64, LOGE.y1 + 0.12, LOGE.y1 + 1.3, vip.aspect))
+    const st = get('st', 'STADE DE KÉGUÉ|LOMÉ · TOGO', '#ffce1f')
+    add('st', board(0, 1, FACADE_D + 0.56, 14.6, 16.9, st.aspect, true))
+    add('st', board(0, 1, TRACK_OUT + 1.0, 0.05, 1.0, st.aspect))
+    groups.forEach((gs, key) => out.push({ geo: mergeGeometries(gs), tex: texFor[key].tex }))
+    return out
   }, [])
   return (
-    <mesh geometry={geo}>
-      <meshBasicMaterial vertexColors toneMapped={false} side={THREE.DoubleSide} />
-    </mesh>
+    <group>
+      {meshes.map((m, i) => (
+        <mesh key={i} geometry={m.geo} raycast={() => null}>
+          <meshBasicMaterial map={m.tex} toneMapped={false} side={THREE.DoubleSide} />
+        </mesh>
+      ))}
+    </group>
+  )
+}
+
+// ---------- stair aisles between blocks (white handrails) ----------
+function Aisles() {
+  const geo = useMemo(() => {
+    const pts: number[] = []
+    for (const b of BLOCKS) {
+      if (b.tier === 'loge') continue
+      const T = b.tier === 'bas' ? LOWER : UPPER
+      const t = b.t0
+      for (const off of [-0.55, 0.55]) {
+        for (let r = 0; r < T.rows; r++) {
+          const a = shape(t, rowD(T, r))
+          const c = shape(t, rowD(T, r) + T.depth)
+          // offset sideways along the tangent
+          const tx = -a.nz
+          const tz = a.nx
+          const y = rowY(T, r) + 0.95
+          pts.push(a.x + tx * off, y, a.z + tz * off, c.x + tx * off, y + T.rise, c.z + tz * off)
+        }
+      }
+    }
+    const g = new THREE.BufferGeometry()
+    g.setAttribute('position', new THREE.Float32BufferAttribute(pts, 3))
+    return g
+  }, [])
+  return (
+    <lineSegments geometry={geo} raycast={() => null}>
+      <lineBasicMaterial color="#e9edf3" transparent opacity={0.75} />
+    </lineSegments>
   )
 }
 
 // ---------- seats (single InstancedMesh) ----------
 const seatGeo = (() => {
-  const seat = new THREE.BoxGeometry(0.5, 0.3, 0.42)
-  seat.translate(0, 0.27, -0.02)
-  const back = new THREE.BoxGeometry(0.5, 0.5, 0.08)
-  back.translate(0, 0.66, 0.2)
-  return mergeGeometries([seat, back])
+  const tint = (g: THREE.BufferGeometry, v: number) => {
+    const n = g.getAttribute('position').count
+    g.setAttribute('color', new THREE.Float32BufferAttribute(new Array(n * 3).fill(v), 3))
+    return g
+  }
+  const seat = tint(new THREE.BoxGeometry(0.48, 0.12, 0.44), 1)
+  seat.translate(0, 0.44, -0.03)
+  const back = tint(new THREE.BoxGeometry(0.48, 0.56, 0.09), 1)
+  back.rotateX(-0.16)
+  back.translate(0, 0.74, 0.2)
+  const base = tint(new THREE.BoxGeometry(0.4, 0.38, 0.3), 0.22)
+  base.translate(0, 0.19, 0.04)
+  const armL = tint(new THREE.BoxGeometry(0.05, 0.05, 0.4), 0.2)
+  armL.translate(-0.27, 0.62, 0.0)
+  const armR = armL.clone()
+  armR.translate(0.54, 0, 0)
+  return mergeGeometries([seat, back, base, armL, armR])
 })()
 
 export const seatIndex: { map: Map<string, number>; list: { b: Block; r: number; c: number }[] } = { map: new Map(), list: [] }
@@ -159,7 +290,6 @@ for (const b of BLOCKS)
       seatIndex.list.push({ b, r, c })
     }
 
-const CROWD = ['#d9d4c7', '#2f3a4d', '#c99a4a', '#8b2f2f', '#244a3a', '#d7b125', '#1d6b3c', '#ffffff', '#4b5568', '#a63a2a']
 
 function Seats() {
   const ref = useRef<THREE.InstancedMesh>(null)
@@ -186,10 +316,11 @@ function Seats() {
     seatIndex.list.forEach(({ b, r, c }, i) => {
       const sold = b.sold[r * b.cols + c]
       if (sold) {
-        col.set(CROWD[(i * 7 + r * 3) % CROWD.length]).multiplyScalar(0.55)
+        col.set('#3a3f4b')
+        if (i % 9 === 0) col.set('#454b58')
       } else {
         col.set(CATS[b.cat].seat)
-        if (blockId && blockId !== b.id) col.multiplyScalar(0.55)
+        if (blockId && blockId !== b.id) col.lerp(new THREE.Color('#5b6270'), 0.45)
       }
       m.setColorAt(i, col)
     })
@@ -197,7 +328,7 @@ function Seats() {
   }, [version, blockId])
   return (
     <instancedMesh ref={ref} args={[seatGeo, undefined, count]} raycast={() => null} frustumCulled={false}>
-      <meshStandardMaterial roughness={0.6} metalness={0.05} />
+      <meshStandardMaterial vertexColors roughness={0.42} metalness={0.05} envMapIntensity={0.9} />
     </instancedMesh>
   )
 }
@@ -220,7 +351,7 @@ function Zone({ b }: { b: Block }) {
   const phase = useApp((s) => s.phase)
   const set = useApp((s) => s.set)
   const mat = useRef<THREE.MeshBasicMaterial>(null)
-  const target = hover ? 0.42 : sel && phase === 'block' ? 0.22 : 0
+  const target = hover ? 0.26 : sel && phase === 'block' ? 0.14 : 0
   useFrame((_, dt) => {
     const m = mat.current
     if (!m) return
@@ -433,19 +564,19 @@ function Loges() {
   return (
     <group>
       <mesh geometry={shell}>
-        <meshStandardMaterial color="#3a2f22" emissive="#7a5418" emissiveIntensity={0.55} roughness={0.7} side={THREE.DoubleSide} />
+        <meshStandardMaterial color="#c86a3c" emissive="#ff7a3a" emissiveIntensity={0.32} roughness={0.55} side={THREE.DoubleSide} />
       </mesh>
       <mesh geometry={parapet}>
-        <meshStandardMaterial color="#1b2130" roughness={0.6} metalness={0.3} side={THREE.DoubleSide} />
+        <meshStandardMaterial color="#e9e4dc" roughness={0.6} side={THREE.DoubleSide} />
       </mesh>
       <mesh geometry={walls}>
-        <meshStandardMaterial color="#1b2130" roughness={0.6} metalness={0.3} />
+        <meshStandardMaterial color="#a84f28" emissive="#ff7a3a" emissiveIntensity={0.15} roughness={0.6} />
       </mesh>
       <mesh geometry={glass}>
-        <meshStandardMaterial color="#9fd0ff" transparent opacity={0.16} roughness={0.05} metalness={0.6} depthWrite={false} side={THREE.DoubleSide} />
+        <meshStandardMaterial color="#d8ecff" transparent opacity={0.12} roughness={0.02} metalness={0.9} depthWrite={false} side={THREE.DoubleSide} />
       </mesh>
       <mesh geometry={glow}>
-        <meshBasicMaterial color="#ffcf4a" toneMapped={false} side={THREE.DoubleSide} />
+        <meshBasicMaterial color="#ffd9b0" toneMapped={false} side={THREE.DoubleSide} />
       </mesh>
     </group>
   )
@@ -478,7 +609,7 @@ function Roof() {
   return (
     <group>
       <mesh geometry={roof}>
-        <meshStandardMaterial color="#c9ced8" roughness={0.45} metalness={0.55} side={THREE.DoubleSide} />
+        <meshStandardMaterial color="#4a505c" roughness={0.6} metalness={0.4} side={THREE.DoubleSide} />
       </mesh>
       <mesh geometry={edge}>
         <meshBasicMaterial color="#fff6dc" toneMapped={false} side={THREE.DoubleSide} />
@@ -568,37 +699,132 @@ function City() {
   )
 }
 
-// ---------- selected seat marker ----------
+// ---------- selected seats: glowing amber chairs ----------
+const pickGeo = seatGeo.clone().scale(1.06, 1.06, 1.06)
 function SeatMarker() {
   const seat = useApp((s) => s.seat)
   const blockId = useApp((s) => s.blockId)
   const phase = useApp((s) => s.phase)
   const qty = useApp((s) => s.qty)
-  const g = useRef<THREE.Group>(null)
+  const version = useApp((s) => s.version)
+  const ref = useRef<THREE.InstancedMesh>(null)
+  const mat = useRef<THREE.MeshStandardMaterial>(null)
   const b = BLOCKS.find((x) => x.id === blockId)
-  useFrame(({ clock }) => {
-    if (!g.current) return
-    const t = clock.elapsedTime
-    g.current.position.y = Math.sin(t * 3) * 0.15
-    g.current.children.forEach((c, i) => (c.rotation.y = t * 1.5 + i))
+  const seats = b && seat ? pickSeats(b, seat, qty) : []
+  useLayoutEffect(() => {
+    const m = ref.current
+    if (!m || !b) return
+    const o = new THREE.Object3D()
+    seats.forEach((s, i) => {
+      const p = seatPose(b, s.r, s.c)
+      o.position.set(p.x, p.y + 0.01, p.z)
+      o.lookAt(p.x - p.nx, p.y, p.z - p.nz)
+      o.rotateY(Math.PI)
+      // in the seat view the camera sits right above the first seat: hide it there
+      o.scale.setScalar(phase === 'seat' && seat && s.c === seat.c ? 0 : 1)
+      o.updateMatrix()
+      m.setMatrixAt(i, o.matrix)
+    })
+    m.count = seats.length
+    m.instanceMatrix.needsUpdate = true
   })
-  if (!b || !seat || phase === 'seat' || phase === 'checkout' || phase === 'ticket') return null
-  const p = seatPose(b, seat.r, seat.c)
-  void qty
+  useFrame(({ clock }) => {
+    if (mat.current) mat.current.emissiveIntensity = 1.1 + Math.sin(clock.elapsedTime * 3.2) * 0.35
+  })
+  void version
+  const hidden = !b || !seat || phase === 'checkout' || phase === 'ticket'
   return (
-    <group position={[p.x, p.y + 1.6, p.z]}>
-      <group ref={g}>
-        <mesh>
-          <octahedronGeometry args={[0.45]} />
-          <meshBasicMaterial color="#ffd21f" toneMapped={false} />
-        </mesh>
-        <mesh position-y={-1.0} rotation-x={-Math.PI / 2}>
-          <ringGeometry args={[0.45, 0.62, 24]} />
-          <meshBasicMaterial color="#ffffff" toneMapped={false} side={THREE.DoubleSide} />
-        </mesh>
-      </group>
+    <instancedMesh ref={ref} args={[pickGeo, undefined, 8]} visible={!hidden} raycast={() => null} frustumCulled={false}>
+      <meshStandardMaterial ref={mat} color="#ffb347" emissive="#ff9a2e" emissiveIntensity={1.2} roughness={0.35} toneMapped={false} transparent opacity={0.94} />
+    </instancedMesh>
+  )
+}
+
+// ---------- block outline + label (hover / selection) ----------
+function labelTexture(text: string, sub: string) {
+  const cv = document.createElement('canvas')
+  cv.width = 512
+  cv.height = 160
+  const g = cv.getContext('2d')!
+  g.fillStyle = '#ffffff'
+  g.textAlign = 'center'
+  g.font = '800 64px "Plus Jakarta Sans Variable", system-ui, sans-serif'
+  g.fillText(text, 256, 70)
+  g.globalAlpha = 0.75
+  g.font = '600 34px "Plus Jakarta Sans Variable", system-ui, sans-serif'
+  g.fillText(sub, 256, 124)
+  const t = new THREE.CanvasTexture(cv)
+  t.colorSpace = THREE.SRGBColorSpace
+  return t
+}
+function outlineOf(b: Block) {
+  const pts: THREE.Vector3[] = []
+  if (b.tier === 'loge') {
+    const ts = tSamples(b.t0, b.t1, 60, 12)
+    ts.forEach((t) => {
+      const p = shape(t, LOGE.d0 - 0.15)
+      pts.push(new THREE.Vector3(p.x, LOGE.y0 + 0.1, p.z))
+    })
+    ;[...ts].reverse().forEach((t) => {
+      const p = shape(t, LOGE.d0 - 0.15)
+      pts.push(new THREE.Vector3(p.x, LOGE.y1, p.z))
+    })
+  } else {
+    const T = b.tier === 'bas' ? LOWER : UPPER
+    const ts = tSamples(b.t0, b.t1, 60, 12)
+    ts.forEach((t) => {
+      const p = shape(t, rowD(T, 0) - 0.1)
+      pts.push(new THREE.Vector3(p.x, rowY(T, 0) + 0.15, p.z))
+    })
+    ;[...ts].reverse().forEach((t) => {
+      const p = shape(t, rowD(T, T.rows) + 0.1)
+      pts.push(new THREE.Vector3(p.x, rowY(T, T.rows - 1) + 1.1, p.z))
+    })
+  }
+  pts.push(pts[0].clone())
+  const g = new THREE.BufferGeometry().setFromPoints(pts)
+  return g
+}
+function BlockHighlight() {
+  const hover = useApp((s) => s.hover?.id ?? null)
+  const blockId = useApp((s) => s.blockId)
+  const phase = useApp((s) => s.phase)
+  const id = hover ?? (phase === 'block' ? blockId : null)
+  const b = id ? BLOCKS.find((x) => x.id === id) ?? null : null
+  const data = useMemo(() => {
+    if (!b) return null
+    const line = new THREE.Line(outlineOf(b), new THREE.LineDashedMaterial({ color: '#ffffff', dashSize: 0.9, gapSize: 0.5, transparent: true, opacity: 0.95, depthTest: false }))
+    line.computeLineDistances()
+    line.renderOrder = 10
+    const c = b.tier === 'loge' ? seatPose(b, 0, 2) : seatPose(b, b.rows - 1, Math.floor(b.cols / 2))
+    const tex = labelTexture(b.tier === 'loge' ? b.name.replace('Loge VIP', 'LOGE') : b.id, `${CATS[b.cat].short} · ${CATS[b.cat].price.toLocaleString('fr-FR').replace(/\u202f|\u00a0/g, ' ')} F`)
+    return { line, pos: [c.x + c.nx * 2, c.y + (b.tier === 'loge' ? 6 : 4.5), c.z + c.nz * 2] as [number, number, number], tex }
+  }, [b])
+  if (!data || phase === 'seat' || phase === 'checkout' || phase === 'ticket') return null
+  return (
+    <group>
+      <primitive object={data.line} />
+      <sprite position={data.pos} scale={[12, 3.75, 1]} renderOrder={11}>
+        <spriteMaterial map={data.tex} transparent depthTest={false} toneMapped={false} />
+      </sprite>
     </group>
   )
+}
+
+// ---------- image-based lighting without any download ----------
+function StudioEnv() {
+  const { gl, scene } = useThree()
+  useEffect(() => {
+    const pm = new THREE.PMREMGenerator(gl)
+    const env = pm.fromScene(new RoomEnvironment(), 0.04).texture
+    scene.environment = env
+    scene.environmentIntensity = 0.55
+    return () => {
+      env.dispose()
+      pm.dispose()
+    }
+  }, [gl, scene])
+  return null
 }
 
 // ---------- sky dome ----------
@@ -612,7 +838,7 @@ function Sky() {
         uniforms: {},
         vertexShader: 'varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
         fragmentShader:
-          'varying vec3 vP; void main(){ float h = clamp(vP.y, 0.0, 1.0); vec3 top = vec3(0.012,0.02,0.045); vec3 hor = vec3(0.07,0.10,0.18); vec3 glow = vec3(0.20,0.16,0.10); vec3 c = mix(hor, top, pow(h, 0.45)); c += glow * pow(1.0 - h, 10.0) * 0.6; gl_FragColor = vec4(c, 1.0); }',
+          'varying vec3 vP; void main(){ float h = clamp(vP.y, 0.0, 1.0); vec3 top = vec3(0.006,0.008,0.014); vec3 hor = vec3(0.035,0.045,0.07); vec3 glow = vec3(0.10,0.07,0.05); vec3 c = mix(hor, top, pow(h, 0.45)); c += glow * pow(1.0 - h, 10.0) * 0.6; gl_FragColor = vec4(c, 1.0); }',
       }),
     [],
   )
@@ -644,8 +870,18 @@ function Rig() {
     c?.addEventListener('controlstart', stop)
     return () => c?.removeEventListener('controlstart', stop)
   }, [])
+  const last = useRef(new THREE.Vector3())
+  const blur = useRef(0)
+  const { gl } = useThree()
   useFrame((_, dt) => {
     if (auto && phase === 'aerial' && ref.current) ref.current.azimuthAngle += dt * 0.06
+    // speed-based blur, like the camera dives in the reference
+    const sp = camera.position.distanceTo(last.current) / Math.max(dt, 1 / 120)
+    last.current.copy(camera.position)
+    const target = Math.min(2.2, Math.max(0, (sp - 45) / 70))
+    blur.current += (target - blur.current) * Math.min(1, dt * 12)
+    const v = blur.current < 0.05 ? '' : `blur(${blur.current.toFixed(2)}px)`
+    if (gl.domElement.style.filter !== v) gl.domElement.style.filter = v
   })
   return <CameraControls ref={ref} makeDefault smoothTime={0.55} draggingSmoothTime={0.12} />
 }
@@ -664,23 +900,24 @@ export default function Scene() {
   return (
     <Canvas
       dpr={dpr}
-      camera={{ fov: 42, near: 0.1, far: 2500, position: [-260, 260, 380] }}
-      gl={{ antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: false }}
+      camera={{ fov: 42, near: 0.25, far: 2500, position: [-260, 260, 380] }}
+      gl={{ antialias: true, powerPreference: 'high-performance', preserveDrawingBuffer: false, logarithmicDepthBuffer: true }}
       onPointerMissed={() => useApp.getState().hover && !useApp.getState().demo && useApp.getState().set({ hover: null })}
       style={{ position: 'absolute', inset: 0, touchAction: 'none' }}
     >
       <PerformanceMonitor onDecline={() => setDpr((d) => Math.max(0.8, d - 0.35))} onIncline={() => setDpr((d) => Math.min(window.devicePixelRatio || 1, 1.75, d + 0.25))} />
-      <color attach="background" args={['#05070d']} />
-      <fog attach="fog" args={['#0b1222', 230, 700]} />
-      <hemisphereLight args={['#a9c3ff', '#1a1208', 0.45]} />
-      <ambientLight intensity={0.25} />
-      <directionalLight position={[-60, 120, 70]} intensity={1.15} color="#fff6e5" />
-      <directionalLight position={[80, 90, -60]} intensity={0.55} color="#dfe8ff" />
+      <color attach="background" args={['#040507']} />
+      <fog attach="fog" args={['#05070b', 240, 720]} />
+      <StudioEnv />
+      <hemisphereLight args={['#eef3ff', '#3b3226', 0.75]} />
+      <directionalLight position={[-40, 140, 60]} intensity={1.6} color="#ffffff" />
+      <directionalLight position={[70, 90, -80]} intensity={0.7} color="#e8eeff" />
       <Sky />
       <Stars radius={500} depth={60} count={1500} factor={6} fade speed={0.4} />
       <Ground />
       <Bowl />
-      <Fascias />
+      <LedBoards />
+      <Aisles />
       <Seats />
       <Loges />
       <Roof />
@@ -688,6 +925,7 @@ export default function Scene() {
       <City />
       <Zones />
       <SeatMarker />
+      <BlockHighlight />
       <Rig />
       <Ready />
     </Canvas>
