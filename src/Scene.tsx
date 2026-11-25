@@ -880,7 +880,10 @@ function Rig() {
     last.current.copy(camera.position)
     const target = Math.min(2.2, Math.max(0, (sp - 45) / 70))
     blur.current += (target - blur.current) * Math.min(1, dt * 12)
-    const v = blur.current < 0.05 ? '' : `blur(${blur.current.toFixed(2)}px)`
+    const w = window as unknown as { __captureMode?: boolean; __blur?: number }
+    // frame capture: CSS blur is very slow in software rendering, the recorder applies it instead
+    w.__blur = blur.current
+    const v = blur.current < 0.05 || w.__captureMode ? '' : `blur(${blur.current.toFixed(2)}px)`
     if (gl.domElement.style.filter !== v) gl.domElement.style.filter = v
     // depth precision: push the near plane out when the camera is far (no z-fighting on the pitch)
     const pc = camera as THREE.PerspectiveCamera

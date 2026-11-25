@@ -1,5 +1,6 @@
 # Frame-by-frame recording of the ?demo=1 walkthrough using the virtual clock in public/capture.js
-import sys, asyncio, subprocess, time
+import sys, asyncio, subprocess, time, io
+from PIL import Image, ImageFilter
 from playwright.async_api import async_playwright
 U = sys.argv[1]
 W, H = int(sys.argv[2]), int(sys.argv[3])
@@ -7,6 +8,7 @@ OUT = sys.argv[4]
 MOB = len(sys.argv) > 5 and sys.argv[5] == 'mobile'
 MAXF = int(sys.argv[6]) if len(sys.argv) > 6 else 99999
 FPS = 30
+SCALE = 2 if MOB else 1
 async def run():
     async with async_playwright() as p:
         b = await p.chromium.launch(args=['--use-angle=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--hide-scrollbars'])
@@ -28,6 +30,10 @@ async def run():
                     buf = await pg.screenshot(type='jpeg', quality=93, timeout=90000); break
                 except Exception as e:
                     print('retry screenshot', n, e, flush=True)
+            bl = await pg.evaluate('window.__blur || 0')
+            if bl > 0.05:  # camera motion blur (applied here, CSS blur is too slow to capture)
+                im = Image.open(io.BytesIO(buf)).filter(ImageFilter.GaussianBlur(bl * SCALE))
+                o = io.BytesIO(); im.save(o, 'JPEG', quality=93); buf = o.getvalue()
             ff.stdin.write(buf); n += 1
             if n % 60 == 0:
                 print(n, round((time.time() - t0) / n, 2), 's/frame', flush=True)
